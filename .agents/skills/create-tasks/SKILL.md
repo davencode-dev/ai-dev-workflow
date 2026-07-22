@@ -11,6 +11,8 @@ Forward only to common command from `ai-dev-workflow` root. Never implement repo
 npm run create-tasks -- --agent codex <application> --description "<report>" --image "/path/image.png"
 ```
 
+Providers: `codex`, `claude-code` (alias `claude`), `antigravity` (alias `agy`).
+
 For attached images, save/resolve local paths first. Use repeated `--image`. Use `--dry-run` before live creation when scope or duplicates uncertain. Use `--single-task` only when report must stay one independently implementable unit. Add `--persist-images` only when task evidence should be committed.
 
 Common command owns repo resolution, screenshot validation, provider proposal schema, duplicate checks, identifiers, task docs, tracking, Git gates, commit, and report. It never executes product tasks or pushes.

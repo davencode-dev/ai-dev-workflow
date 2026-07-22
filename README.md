@@ -16,10 +16,13 @@ Edit copied file with your own repositories. Never commit it.
 ```bash
 npm run tasks -- --agent codex example-app APP-003 APP-001 APP-002
 npm run tasks -- --agent claude-code file-app FILE-002 FILE-004
+npm run tasks -- --agent antigravity file-app FILE-002
 npm run tasks -- --agent codex --dry-run example-app APP-003 APP-001
 ```
 
-Requires Node 22+ plus installed, authenticated `codex` or `claude`. `--dry-run` checks provider, app/repo, every task document, preserved order, validation/build policy; invokes no agent, changes no app repo.
+Providers: `codex`, `claude-code` (alias `claude`), `antigravity` (alias `agy`). Aliases resolve to the canonical id, so reports and resume commands always print the canonical name.
+
+Requires Node 22+ plus an installed, authenticated `codex`, `claude`, or `agy` CLI. `--dry-run` checks provider, app/repo, every task document, preserved order, validation/build policy; invokes no agent, changes no app repo.
 
 Codex: invoke `$run-tasks --agent codex example-app APP-003`. Claude Code: from this repo invoke `/run-tasks example-app APP-003`; command supplies `--agent claude-code`. Both forward to same runner.
 
@@ -36,7 +39,7 @@ npm run create-tasks -- --dry-run task-app --description "Icons do not load" --i
 
 Supported images: PNG, JPG/JPEG, WEBP. Reuse `--image` for each file. Images are inspected but not committed by default; `--persist-images` copies safe evidence names into registry-configured task evidence storage. `--single-task` rejects provider splits that cannot be scoped safely as one task. Existing open task text is checked before ID allocation; possible duplicates are reported without writing.
 
-Codex: `$create-tasks task-app --description "Icons fail" --image "/path/icons.jpeg"`. Claude Code: `/create-tasks task-app --description "Icons fail" --image "/path/icons.jpeg"`. Both delegate to common command. Codex forwards images with its documented `--image` option. Claude Code receives image parent directories through documented `--add-dir`; provider must inspect only supplied image paths.
+Codex: `$create-tasks task-app --description "Icons fail" --image "/path/icons.jpeg"`. Claude Code: `/create-tasks task-app --description "Icons fail" --image "/path/icons.jpeg"`. Both delegate to common command. Codex forwards images with its documented `--image` option. Claude Code and Antigravity receive image parent directories through documented `--add-dir`; provider must inspect only supplied image paths. Antigravity has no output-schema option, so its proposal schema travels in the prompt and JSON is parsed from the response.
 
 ## Architecture
 
