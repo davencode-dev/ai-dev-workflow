@@ -1,0 +1,24 @@
+# Local execution evidence. May contain repository paths, task text, or provider output.
+.agent-runs/
+.codex-runs/
+
+# Local-only repository registry. Publish config/repositories.example.json instead.
+config/repositories.json
+
+# Private planning/history retained locally while preparing a public repository.
+.private/
+
+# Credentials and machine-local configuration.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+
+# Common local artifacts.
+.DS_Store
+*.log
+node_modules/

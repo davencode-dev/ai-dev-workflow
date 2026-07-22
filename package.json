@@ -1,0 +1,11 @@
+{
+  "name": "ai-dev-workflow",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tasks": "node --experimental-strip-types src/cli/run-tasks.ts",
+    "create-tasks": "node --experimental-strip-types src/cli/create-tasks.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:legacy": "./scripts/test-run-tasks.sh"
+  }
+}
