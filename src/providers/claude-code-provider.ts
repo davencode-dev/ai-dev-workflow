@@ -11,8 +11,8 @@ export class ClaudeCodeProvider implements AgentProvider {
     return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
   }
   async propose({ repository, prompt, images, schemaPath, timeoutMs }: Parameters<TaskProposalProvider['propose']>[0]) {
-    const schema = await readFile(schemaPath, 'utf8'); const imageDirs = [...new Set(images.map((image) => dirname(image.path)))];
-    const r = await runProcess('claude', ['-p', '--no-session-persistence', '--permission-mode', 'plan', '--output-format', 'text', '--json-schema', schema, ...imageDirs.flatMap((dir) => ['--add-dir', dir]), prompt], repository.path, timeoutMs);
+    const schema = await readFile(schemaPath, 'utf8');
+    const r = await runProcess('claude', ['-p', '--no-session-persistence', '--permission-mode', 'plan', '--output-format', 'text', `${prompt}\nRespond with JSON only, matching this schema:\n${schema}`], repository.path, timeoutMs);
     return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
   }
 }
