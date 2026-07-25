@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import { runProcess } from '../core/process.ts';
 import type { AgentProvider, TaskProposalProvider } from './agent-provider.ts';
 
@@ -11,8 +11,11 @@ export class CodexProvider implements AgentProvider {
     return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
   }
   async propose({ repository, prompt, images, schemaPath, timeoutMs }: Parameters<TaskProposalProvider['propose']>[0]) {
-    const args = ['exec', '--ephemeral', '-C', repository.path, '-s', 'read-only', '--output-schema', schemaPath, ...images.flatMap((image) => ['--image', image.path]), prompt];
+    const outputPath = `${schemaPath}.output-${process.pid}-${Date.now()}.json`;
+    const args = ['exec', '--ephemeral', '-C', repository.path, '-s', 'read-only', '--output-schema', schemaPath, '--output-last-message', outputPath, ...images.flatMap((image) => ['--image', image.path]), prompt];
     const r = await runProcess('codex', args, repository.path, timeoutMs);
-    return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
+    const output = existsSync(outputPath) ? await readFile(outputPath, 'utf8') : r.output;
+    if (existsSync(outputPath)) await unlink(outputPath);
+    return { status: r.exitCode === 0 ? 'success' : 'failure', output, exitCode: r.exitCode };
   }
 }
