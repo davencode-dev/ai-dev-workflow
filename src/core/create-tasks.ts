@@ -35,12 +35,12 @@ export async function createTasks(options: CreateOptions): Promise<{ report: Cre
   const available = await options.provider.available(); if (!available.ok) throw new Error(`Provider ${options.provider.id} unavailable: ${available.reason ?? 'unknown error'}`);
   const schemaPath = await schema(options.root); const response = await options.provider.propose({ repository, images, schemaPath, prompt: proposalPrompt(repository, options.description, images, options.singleTask) });
   if (response.status !== 'success') throw new Error(`Provider task proposal failed: ${response.output}`);
-  const proposal = validateProposal(parseJson(response.output)); report.proposed = proposal.tasks; report.warnings.push(...(proposal.warnings ?? []));
+  const proposal = validateProposal(parseJson(response.output)); const proposedTasks = proposal.tasks.map((task) => ({ ...task, title: withoutProviderId(task.title, repository.taskPrefix) })); report.proposed = proposedTasks; report.warnings.push(...(proposal.warnings ?? []));
   if (options.singleTask && proposal.tasks.length !== 1) throw new Error('--single-task cannot safely scope this report as one task');
   const ids = allocate(repository.taskPrefix, existing, proposal.tasks.length); report.created = ids;
   report.runCommand = `npm run tasks -- --agent ${options.provider.id} ${repository.id} ${ids.join(' ')}`;
   const documentImages = options.persistImages ? images.map((image) => ({ ...image, path: join(repository.taskEvidenceDir!, imageName(image)) })) : [];
-  const planned = await files(repository, ids, proposal.tasks, documentImages); report.filesChanged = planned.map((entry) => entry.path);
+  const planned = await files(repository, ids, proposedTasks, documentImages); report.filesChanged = planned.map((entry) => entry.path);
   if (!options.dryRun) {
     for (const entry of planned) { await mkdir(join(entry.path, '..'), { recursive: true }); await writeFile(entry.path, entry.content); }
     if (options.persistImages && images.length) await persist(repository, images, report.filesChanged);
@@ -62,6 +62,7 @@ function markdown(id: string, task: ProposedTask, evidence: string, prefix = '# 
 function list(items: unknown) { if (!items) return '- Establish during implementation.'; if (typeof items === 'string') return `- ${items}`; if (Array.isArray(items)) return items.map((item) => `- ${item}`).join('\n') || '- Establish during implementation.'; return '- Establish during implementation.'; }
 function index(current: string, ids: string[], tasks: ProposedTask[]) { const rows = tasks.map((task, i) => `| [${ids[i]}](./${ids[i]}-${slug(task.title)}.md) | ${task.title} | ${task.size} | Ready |`).join('\n'); return `${current.trimEnd()}\n${rows}\n`; }
 function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 72); }
+function withoutProviderId(value: string, prefix: string) { return value.replace(new RegExp(`^${prefix}-\\d{3}\\s*(?:—|–|-)\\s*`, 'i'), '').trim(); }
 function allowed(file: string, repository: RepositoryConfig) { return file === repository.taskTracking || file.startsWith(`${repository.taskResolver.path}/`) || (!!repository.taskEvidenceDir && file.startsWith(`${repository.taskEvidenceDir}/`)); }
 function imageName(image: ImageEvidence) { return `${slug(image.filename.replace(extname(image.filename), ''))}-${image.bytes}${extname(image.filename).toLowerCase()}`; }
 async function persist(repository: RepositoryConfig, images: ImageEvidence[], changed: string[]) { const dir = join(repository.path, repository.taskEvidenceDir!); await mkdir(dir, { recursive: true }); for (const image of images) { const destination = join(dir, imageName(image)); try { await access(destination, constants.F_OK); } catch { await copyFile(image.path, destination); changed.push(destination); } } }
