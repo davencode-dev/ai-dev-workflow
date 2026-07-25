@@ -65,7 +65,35 @@ function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g,
 function allowed(file: string, repository: RepositoryConfig) { return file === repository.taskTracking || file.startsWith(`${repository.taskResolver.path}/`) || (!!repository.taskEvidenceDir && file.startsWith(`${repository.taskEvidenceDir}/`)); }
 function imageName(image: ImageEvidence) { return `${slug(image.filename.replace(extname(image.filename), ''))}-${image.bytes}${extname(image.filename).toLowerCase()}`; }
 async function persist(repository: RepositoryConfig, images: ImageEvidence[], changed: string[]) { const dir = join(repository.path, repository.taskEvidenceDir!); await mkdir(dir, { recursive: true }); for (const image of images) { const destination = join(dir, imageName(image)); try { await access(destination, constants.F_OK); } catch { await copyFile(image.path, destination); changed.push(destination); } } }
-async function schema(root: string) { const path = join(root, '.agent-runs', 'task-proposal-schema.json'); await mkdir(join(root, '.agent-runs'), { recursive: true }); const requiredFields = ['title','type','size','problem','impact','evidence','reproduction','scope','outOfScope','codeAreas','hypotheses','acceptance','validation','platforms','risks','dependencies']; const taskProperties = Object.fromEncoding ? {} : Object.fromEntries(requiredFields.map((f) => [f, f === 'title' || f === 'type' || f === 'size' || f === 'problem' || f === 'impact' ? { type: 'string' } : { type: 'array', items: { type: 'string' } }])); await writeFile(path, JSON.stringify({ type: 'object', required: ['tasks'], properties: { tasks: { type: 'array', minItems: 1, items: { type: 'object', required: requiredFields, properties: taskProperties } } } }, null, 2)); return path; }
+async function schema(root: string) {
+  const path = join(root, '.agent-runs', 'task-proposal-schema.json');
+  await mkdir(join(root, '.agent-runs'), { recursive: true });
+  const requiredFields = ['title','type','size','problem','impact','evidence','reproduction','scope','outOfScope','codeAreas','hypotheses','acceptance','validation','platforms','risks','dependencies'];
+  const taskProperties = Object.fromEntries(requiredFields.map((field) => [
+    field,
+    field === 'title' || field === 'type' || field === 'size' || field === 'problem' || field === 'impact'
+      ? { type: 'string' }
+      : { type: 'array', items: { type: 'string' } },
+  ]));
+  await writeFile(path, JSON.stringify({
+    type: 'object',
+    additionalProperties: false,
+    required: ['tasks'],
+    properties: {
+      tasks: {
+        type: 'array',
+        minItems: 1,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: requiredFields,
+          properties: taskProperties,
+        },
+      },
+    },
+  }, null, 2));
+  return path;
+}
 function parseJson(value: string) {
   const codeBlockMatch = value.match(/```(?:json)?\s*([\s\S]*?)```/);
   const textToParse = codeBlockMatch ? codeBlockMatch[1].trim() : value;
