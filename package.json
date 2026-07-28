@@ -5,6 +5,7 @@
   "scripts": {
     "tasks": "node --experimental-strip-types src/cli/run-tasks.ts",
     "create-tasks": "node --experimental-strip-types src/cli/create-tasks.ts",
+    "verify-mobile": "node --experimental-strip-types src/cli/verify-mobile.ts",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:legacy": "./scripts/test-run-tasks.sh"
   }

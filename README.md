@@ -67,3 +67,18 @@ Implement `AgentProvider` in `src/providers/`, register it in `src/cli/run-tasks
 npm test
 npm run test:legacy
 ```
+
+## Mobile verification
+
+Mobile projects can add `.ai-dev-workflow/mobile-verification.json` with their
+Android package, checks, build artifact, emulator roles, Maestro roots, manual
+workflow gaps, and documentation paths. The generic runner then works for
+different app layouts without embedding project-specific selectors or commands:
+
+```bash
+npm run verify-mobile -- --dry-run weshift
+npm run verify-mobile -- weshift
+```
+
+See [guidance/mobile-verification.md](guidance/mobile-verification.md) and the
+[manifest example](config/mobile-verification.example.json).

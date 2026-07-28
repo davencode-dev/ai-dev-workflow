@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "platform": "android",
+  "appId": "com.example.app",
+  "checks": [
+    { "id": "typecheck", "command": { "command": "npm", "args": ["run", "typecheck"] } },
+    { "id": "lint", "command": { "command": "npm", "args": ["run", "lint"] } },
+    { "id": "tests", "command": { "command": "npm", "args": ["test", "--", "--runInBand"] } }
+  ],
+  "build": {
+    "command": "npm",
+    "args": ["run", "build:android:local"],
+    "artifact": "android/app/build/outputs/apk/release/app-release.apk"
+  },
+  "devices": {
+    "primary": { "avd": "Example_Test", "port": 5554, "start": true },
+    "secondary": { "avd": "Example_Recipient", "port": 5556, "start": true, "required": false },
+    "bootTimeoutMs": 120000,
+    "isolation": "dedicated"
+  },
+  "maestro": {
+    "command": { "command": "maestro", "args": ["test"] },
+    "deviceFlag": "--device",
+    "roots": [".maestro/flows"],
+    "include": ["**/*.yaml"],
+    "exclude": ["**/subflows/**"],
+    "testOutputDir": ".ai-dev-workflow/evidence/maestro"
+  },
+  "manualWorkflows": [
+    {
+      "id": "sharing-cycle",
+      "title": "Two-device sharing cycle",
+      "reason": "Requires interactive account setup and a second device.",
+      "documentation": "docs/workflows.md"
+    }
+  ],
+  "documentation": {
+    "inventory": "docs/workflows.md",
+    "verification": "docs/verification.md",
+    "evidenceDir": "docs/evidence"
+  }
+}
