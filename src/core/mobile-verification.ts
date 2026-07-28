@@ -53,11 +53,12 @@ function stringArray(value: unknown, label: string, required = false): string[] 
 function command(value: unknown, label: string): MobileCommand {
   const raw = object(value, label);
   const args = raw.args === undefined ? [] : stringArray(raw.args, `${label}.args`, true);
+  const cwd = optionalString(raw.cwd, `${label}.cwd`);
   const timeoutMs = raw.timeoutMs === undefined ? undefined : Number(raw.timeoutMs);
   if (timeoutMs !== undefined && (!Number.isInteger(timeoutMs) || timeoutMs <= 0)) {
     throw new Error(`${label}.timeoutMs must be a positive integer`);
   }
-  return { command: string(raw.command, `${label}.command`), args, timeoutMs };
+  return { command: string(raw.command, `${label}.command`), args, cwd, timeoutMs };
 }
 
 function role(value: unknown, label: string): EmulatorRole {
@@ -210,8 +211,12 @@ function dryResult(spec: MobileCommand, extraArgs: string[] = []): MobileCommand
   return { command: displayCommand(spec, extraArgs), exitCode: 0, output: 'would run', status: 'DRY_RUN' };
 }
 
+function commandCwd(spec: MobileCommand, cwd: string): string {
+  return spec.cwd ? targetPath(cwd, spec.cwd) : cwd;
+}
+
 async function runCommand(spec: MobileCommand, cwd: string, extraArgs: string[] = []): Promise<MobileCommandResult> {
-  const result = await runProcess(spec.command, [...(spec.args ?? []), ...extraArgs], cwd, spec.timeoutMs);
+  const result = await runProcess(spec.command, [...(spec.args ?? []), ...extraArgs], commandCwd(spec, cwd), spec.timeoutMs);
   return { ...result, command: displayCommand(spec, extraArgs), status: result.exitCode === 0 ? 'PASS' : 'FAIL' };
 }
 
@@ -311,7 +316,8 @@ export async function runMobileVerification(options: MobileVerificationOptions):
   const requiredTools = new Set(['adb', manifest.maestro.command.command, manifest.build.command, ...manifest.checks.map((checkSpec) => checkSpec.command.command)]);
   if (!options.dryRun) {
     for (const tool of requiredTools) {
-      if (!(await commandAvailable(tool, repository.path))) throw new Error(`Required tool unavailable: ${tool}`);
+      const toolCwd = manifest.build.command === tool && manifest.build.cwd ? targetPath(repository.path, manifest.build.cwd) : repository.path;
+      if (!(await commandAvailable(tool, toolCwd))) throw new Error(`Required tool unavailable: ${tool}`);
     }
   }
   for (const checkSpec of manifest.checks) {

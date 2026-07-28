@@ -8,8 +8,9 @@
     { "id": "tests", "command": { "command": "npm", "args": ["test", "--", "--runInBand"] } }
   ],
   "build": {
-    "command": "npm",
-    "args": ["run", "build:android:local"],
+    "command": "./gradlew",
+    "cwd": "android",
+    "args": [":app:assembleRelease"],
     "artifact": "android/app/build/outputs/apk/release/app-release.apk"
   },
   "devices": {

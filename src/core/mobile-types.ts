@@ -9,6 +9,7 @@ export type MobileVerificationStatus =
 export type MobileCommand = {
   command: string;
   args?: string[];
+  cwd?: string;
   timeoutMs?: number;
 };
 

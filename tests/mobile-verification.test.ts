@@ -67,6 +67,7 @@ test('parses mobile CLI arguments and rejects ambiguous input', () => {
 
 test('validates manifest platform and required fields', () => {
   assert.equal(parseMobileManifest(manifest()).appId, 'com.example.app');
+  assert.equal(parseMobileManifest(manifest({ build: { command: 'gradlew', cwd: 'android', artifact: 'build/app.apk' } })).build.cwd, 'android');
   assert.throws(() => parseMobileManifest(manifest({ platform: 'ios' })), /platform/);
   assert.throws(() => parseMobileManifest(manifest({ appId: '' })), /appId/);
   assert.throws(() => parseMobileManifest(manifest({ devices: { primary: {} } })), /avd or serial/);
