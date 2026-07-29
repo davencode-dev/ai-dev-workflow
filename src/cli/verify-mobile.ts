@@ -36,7 +36,7 @@ async function main() {
     dryRun: args.dryRun,
   });
   console.log(JSON.stringify({ report: result.reportPath, status: result.report.status, flows: result.report.flows.length, manual: result.report.manualWorkflows.length }, null, 2));
-  if (!args.dryRun && result.report.status === 'FAIL') process.exitCode = 1;
+  if (!args.dryRun && ['FAIL', 'BLOCKED'].includes(result.report.status)) process.exitCode = 1;
 }
 
 if (import.meta.main) main().catch((error: Error) => { console.error(`ERROR: ${error.message}`); process.exitCode = 2; });

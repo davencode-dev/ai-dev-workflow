@@ -154,6 +154,14 @@ function targetPath(targetRoot: string, value: string): string {
   return resolved;
 }
 
+function pathWithin(root: string, candidate: string): boolean {
+  return candidate === root || candidate.startsWith(`${root}${sep}`);
+}
+
+function generatedOutputPath(repositoryRoot: string, value: string | undefined): string | undefined {
+  return value ? targetPath(repositoryRoot, value) : undefined;
+}
+
 export async function loadMobileManifest(targetRoot: string, manifestRelativePath = '.ai-dev-workflow/mobile-verification.json') {
   const path = targetPath(targetRoot, manifestRelativePath);
   const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown;
@@ -243,17 +251,33 @@ async function waitForBoot(serial: string, cwd: string, timeoutMs: number): Prom
 
 async function ensureDevice(role: EmulatorRole, cwd: string, timeoutMs: number): Promise<{ serial?: string; result: MobileCommandResult }> {
   let serial = serialFor(role);
-  if (!serial && role.start && role.avd) {
-    serial = `emulator-${role.port ?? 5554}`;
-    const child = spawn('emulator', ['-avd', role.avd, '-port', String(role.port ?? 5554), '-no-boot-anim', '-no-snapshot-load'], {
-      cwd,
-      detached: true,
-      stdio: 'ignore',
-    });
-    child.unref();
-  }
   if (!serial) return { result: { command: 'adb devices', exitCode: 2, output: 'Device role requires serial or a startable AVD', status: 'BLOCKED' } };
   if (role.start && role.avd && !role.serial) {
+    const currentState = await runProcess('adb', ['-s', serial, 'get-state'], cwd);
+    if (currentState.exitCode !== 0 || currentState.output.trim() !== 'device') {
+      let spawnError: string | undefined;
+      const child = spawn('emulator', ['-avd', role.avd, '-port', String(role.port ?? 5554), '-no-boot-anim', '-no-snapshot-load'], {
+        cwd,
+        detached: true,
+        stdio: 'ignore',
+      });
+      await new Promise<void>((resolvePromise) => {
+        const timer = setTimeout(resolvePromise, 100);
+        child.once('spawn', () => {
+          clearTimeout(timer);
+          resolvePromise();
+        });
+        child.once('error', (error) => {
+          clearTimeout(timer);
+          spawnError = error.message;
+          resolvePromise();
+        });
+      });
+      child.unref();
+      if (spawnError) {
+        return { serial, result: { command: `emulator -avd ${role.avd} -port ${role.port ?? 5554}`, exitCode: 127, output: spawnError, status: 'BLOCKED' } };
+      }
+    }
     return { serial, result: await waitForBoot(serial, cwd, timeoutMs) };
   }
   const state = await runProcess('adb', ['-s', serial, 'get-state'], cwd);
@@ -269,7 +293,12 @@ async function ensureDevice(role: EmulatorRole, cwd: string, timeoutMs: number):
 }
 
 async function installAndLaunch(targetRoot: string, manifest: MobileVerificationManifest, serial: string, artifact: string): Promise<MobileCommandResult[]> {
-  const install = await runCommand({ command: 'adb', args: ['-s', serial, 'install', '-r'] }, targetRoot, [artifact]);
+  let install = await runCommand({ command: 'adb', args: ['-s', serial, 'install', '-r'] }, targetRoot, [artifact]);
+  if (install.exitCode && manifest.devices.isolation === 'dedicated' && install.output.includes('INSTALL_FAILED_UPDATE_INCOMPATIBLE')) {
+    const uninstall = await runCommand({ command: 'adb', args: ['-s', serial, 'uninstall', manifest.appId] }, targetRoot);
+    if (uninstall.exitCode) return [install, uninstall];
+    install = await runCommand({ command: 'adb', args: ['-s', serial, 'install', '-r'] }, targetRoot, [artifact]);
+  }
   if (install.exitCode) return [install];
   const launchArgs = manifest.launchActivity
     ? ['-s', serial, 'shell', 'am', 'start', '-n', `${manifest.appId}/${manifest.launchActivity}`]
@@ -311,7 +340,17 @@ export async function runMobileVerification(options: MobileVerificationOptions):
   };
   if (!options.dryRun) {
     const git = await runProcess('git', ['status', '--porcelain'], repository.path);
-    if (git.output.trim()) throw new Error(`Target repository is dirty: ${repository.path}`);
+    const generatedPaths = [
+      generatedOutputPath(repository.path, manifest.maestro.testOutputDir),
+      generatedOutputPath(repository.path, manifest.documentation.evidenceDir),
+    ].filter((path): path is string => !!path);
+    const dirtyPaths = git.output.split(/\r?\n/).filter((line) => {
+      if (!line.trim()) return false;
+      const relativePath = line.slice(3).trim().replace(/^"|"$/g, '');
+      const absolutePath = targetPath(repository.path, relativePath);
+      return !generatedPaths.some((generatedPath) => pathWithin(generatedPath, absolutePath) || pathWithin(absolutePath, generatedPath));
+    });
+    if (dirtyPaths.length) throw new Error(`Target repository is dirty: ${repository.path}`);
   }
   const requiredTools = new Set(['adb', manifest.maestro.command.command, manifest.build.command, ...manifest.checks.map((checkSpec) => checkSpec.command.command)]);
   if (!options.dryRun) {
@@ -350,15 +389,20 @@ export async function runMobileVerification(options: MobileVerificationOptions):
       if (device.serial && device.result.status === 'PASS') readyDevices.push({ role: name, serial: device.serial });
       else if (roleConfig.required !== false) break;
     }
+    const installedDevices: Array<{ role: string; serial: string }> = [];
     if (readyDevices.some((device) => device.role === 'primary')) {
       for (const device of readyDevices) {
         const installation = await installAndLaunch(repository.path, manifest, device.serial, artifact);
-        if (device.role === 'primary' && installation.some((result) => result.status !== 'PASS')) {
-          report.devices.find((entry) => entry.role === device.role)!.status = 'BLOCKED';
-          continue;
+        const failure = installation.find((result) => result.status !== 'PASS');
+        if (failure) {
+          const reportDevice = report.devices.find((entry) => entry.role === device.role)!;
+          reportDevice.status = 'BLOCKED';
+          reportDevice.reason = installation.map((result) => result.output).filter(Boolean).join('\n');
+        } else {
+          installedDevices.push(device);
         }
       }
-      const primary = readyDevices.find((device) => device.role === 'primary');
+      const primary = installedDevices.find((device) => device.role === 'primary');
       if (primary) {
         const flows = await discoverMaestroFlows(repository.path, manifest.maestro);
         const outputRoot = manifest.maestro.testOutputDir ? targetPath(repository.path, manifest.maestro.testOutputDir) : join(options.root, '.agent-runs', 'mobile-test-output');
