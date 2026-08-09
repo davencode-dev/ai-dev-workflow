@@ -3,6 +3,10 @@ import { readFile, unlink } from 'node:fs/promises';
 import { runProcess } from '../core/process.ts';
 import type { AgentProvider, TaskProposalProvider } from './agent-provider.ts';
 
+export function codexProposalArgs(repositoryPath: string, schemaPath: string, outputPath: string, imagePaths: string[], prompt: string): string[] {
+  return ['exec', '--ephemeral', '-C', repositoryPath, '-s', 'read-only', '--output-schema', schemaPath, '--output-last-message', outputPath, ...imagePaths.flatMap((path) => ['--image', path]), '--', prompt];
+}
+
 export class CodexProvider implements AgentProvider {
   id = 'codex';
   async available() { const r = await runProcess('codex', ['exec', '--help'], process.cwd()); return r.exitCode === 0 ? { ok: true } : { ok: false, reason: 'codex CLI unavailable or invalid' }; }
@@ -12,7 +16,7 @@ export class CodexProvider implements AgentProvider {
   }
   async propose({ repository, prompt, images, schemaPath, timeoutMs }: Parameters<TaskProposalProvider['propose']>[0]) {
     const outputPath = `${schemaPath}.output-${process.pid}-${Date.now()}.json`;
-    const args = ['exec', '--ephemeral', '-C', repository.path, '-s', 'read-only', '--output-schema', schemaPath, '--output-last-message', outputPath, ...images.flatMap((image) => ['--image', image.path]), prompt];
+    const args = codexProposalArgs(repository.path, schemaPath, outputPath, images.map((image) => image.path), prompt);
     const r = await runProcess('codex', args, repository.path, timeoutMs);
     const output = existsSync(outputPath) ? await readFile(outputPath, 'utf8') : r.output;
     if (existsSync(outputPath)) await unlink(outputPath);
