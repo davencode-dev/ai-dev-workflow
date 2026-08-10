@@ -8,7 +8,7 @@ import type { CreateTasksReport, ImageEvidence, ProposedTask, RepositoryConfig, 
 import type { TaskProposalProvider } from '../providers/agent-provider.ts';
 
 const formats = new Set(['.png', '.jpg', '.jpeg', '.webp']);
-export type CreateOptions = { root: string; provider: TaskProposalProvider; registry: RepositoryConfig[]; application: string; description: string; imagePaths: string[]; dryRun?: boolean; singleTask?: boolean; persistImages?: boolean };
+export type CreateOptions = { root: string; provider: TaskProposalProvider; registry: RepositoryConfig[]; application: string; description: string; imagePaths: string[]; dryRun?: boolean; singleTask?: boolean; persistImages?: boolean; proposalReportPath?: string };
 
 export async function validateImages(paths: string[]): Promise<ImageEvidence[]> {
   const result: ImageEvidence[] = [];
@@ -32,10 +32,10 @@ export async function createTasks(options: CreateOptions): Promise<{ report: Cre
   const existing = await existingText(repository); const duplicates = findDuplicates(options.description, existing);
   const report: CreateTasksReport = { provider: options.provider.id, repository: repository.path, description: options.description, images, proposed: [], created: [], duplicates, filesChanged: [], trackingFile: join(repository.path, repository.taskTracking), dryRun: !!options.dryRun, startedAt: new Date().toISOString(), warnings: [], runCommand: '' };
   if (duplicates.length) { report.warnings.push(`Possible duplicate task evidence: ${duplicates.join(', ')}`); report.endedAt = new Date().toISOString(); return { report, reportPath: await writeCreateReport(options.root, report) }; }
-  const available = await options.provider.available(); if (!available.ok) throw new Error(`Provider ${options.provider.id} unavailable: ${available.reason ?? 'unknown error'}`);
-  const schemaPath = await schema(options.root); const response = await options.provider.propose({ repository, images, schemaPath, prompt: proposalPrompt(repository, options.description, images, options.singleTask) });
-  if (response.status !== 'success') throw new Error(`Provider task proposal failed: ${response.output}`);
-  const proposal = validateProposal(parseJson(response.output)); const proposedTasks = proposal.tasks.map((task) => ({ ...task, title: withoutProviderId(task.title, repository.taskPrefix) })); report.proposed = proposedTasks; report.warnings.push(...(proposal.warnings ?? []));
+  let proposal: TaskProposal;
+  if (options.proposalReportPath) proposal = await replayProposal(options, repository, images);
+  else { const available = await options.provider.available(); if (!available.ok) throw new Error(`Provider ${options.provider.id} unavailable: ${available.reason ?? 'unknown error'}`); const schemaPath = await schema(options.root); const response = await options.provider.propose({ repository, images, schemaPath, prompt: proposalPrompt(repository, options.description, images, options.singleTask) }); if (response.status !== 'success') throw new Error(`Provider task proposal failed: ${response.output}`); proposal = validateProposal(parseJson(response.output)); }
+  const proposedTasks = proposal.tasks.map((task) => ({ ...task, title: withoutProviderId(task.title, repository.taskPrefix) })); report.proposed = proposedTasks; report.warnings.push(...(proposal.warnings ?? []));
   if (options.singleTask && proposal.tasks.length !== 1) throw new Error('--single-task cannot safely scope this report as one task');
   const ids = allocate(repository.taskPrefix, existing, proposal.tasks.length); report.created = ids;
   report.runCommand = `npm run tasks -- --agent ${options.provider.id} ${repository.id} ${ids.join(' ')}`;
@@ -49,6 +49,16 @@ export async function createTasks(options: CreateOptions): Promise<{ report: Cre
     if (await git.status(repository.path)) throw new Error('Target repository not clean after task-document commit');
   }
   report.endedAt = new Date().toISOString(); return { report, reportPath: await writeCreateReport(options.root, report) };
+}
+
+async function replayProposal(options: CreateOptions, repository: RepositoryConfig, images: ImageEvidence[]): Promise<TaskProposal> {
+  const reportsRoot = resolve(options.root, '.agent-runs'); const reportPath = resolve(options.proposalReportPath!); const reportRelative = relative(reportsRoot, reportPath);
+  if (!reportRelative || reportRelative.startsWith('..')) throw new Error('Proposal report must be a file inside .agent-runs');
+  const prior = JSON.parse(await readFile(reportPath, 'utf8')) as CreateTasksReport;
+  if (!prior.dryRun || prior.repository !== repository.path || prior.provider !== options.provider.id || prior.description !== options.description) throw new Error('Proposal report does not match this dry-run request');
+  const imageSignature = (items: ImageEvidence[]) => JSON.stringify(items.map(({ path, bytes, format }) => ({ path, bytes, format })));
+  if (imageSignature(prior.images) !== imageSignature(images)) throw new Error('Proposal report images do not match this request');
+  return validateProposal({ tasks: prior.proposed });
 }
 
 async function existingText(repository: RepositoryConfig): Promise<string[]> { const root = join(repository.path, repository.taskResolver.path); return allMarkdown(root); }
