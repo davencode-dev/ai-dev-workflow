@@ -63,8 +63,68 @@ async function replayProposal(options: CreateOptions, repository: RepositoryConf
 
 async function existingText(repository: RepositoryConfig): Promise<string[]> { const root = join(repository.path, repository.taskResolver.path); return allMarkdown(root); }
 async function allMarkdown(path: string): Promise<string[]> { try { const s = await stat(path); if (s.isFile()) return path.endsWith('.md') ? [await readFile(path, 'utf8')] : []; const names = await readdir(path, { withFileTypes: true }); return (await Promise.all(names.map((n) => allMarkdown(join(path, n.name))))).flat(); } catch { return []; } }
-function findDuplicates(description: string, existing: string[]): string[] { const key = normalize(description); if (!key) return []; return existing.filter((text) => { const normalizedText = normalize(text); const normalizedPrefix = normalize(text.slice(0, 180)); return normalizedText.includes(key) || (!!normalizedPrefix && key.includes(normalizedPrefix)); }).slice(0, 3).map((text) => (text.match(/[A-Z][A-Z0-9_-]*-\d{3}/)?.[0] ?? 'existing task')); }
-function normalize(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter((word) => word.length > 3).join(' '); }
+const stopWords = new Set(['the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'in', 'to', 'for', 'of', 'with', 'by', 'from', 'this', 'that', 'it', 'as', 'are', 'was', 'be', 'has', 'have', 'had', 'not', 'but']);
+
+function stem(word: string): string {
+  return word.replace(/ies$/, 'y').replace(/(?:ing|ed|ly|es|s)$/, '').replace(/tion$/, 't');
+}
+
+function tokenize(value: string): string[] {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter((word) => word.length >= 3 && !stopWords.has(word)).map(stem);
+}
+
+function normalize(value: string) {
+  return tokenize(value).join(' ');
+}
+
+function stringSimilarity(str1: string, str2: string): number {
+  if (!str1 || !str2) return 0;
+  if (str1 === str2) return 1;
+  const getBigrams = (str: string) => {
+    const set = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) set.add(str.slice(i, i + 2));
+    return set;
+  };
+  const b1 = getBigrams(str1); const b2 = getBigrams(str2);
+  if (!b1.size || !b2.size) return 0;
+  let intersection = 0;
+  for (const bg of b1) { if (b2.has(bg)) intersection++; }
+  return (2 * intersection) / (b1.size + b2.size);
+}
+
+function findDuplicates(description: string, existing: string[]): string[] {
+  const descTokens = tokenize(description);
+  if (!descTokens.length) return [];
+  const descKey = normalize(description);
+  const matchedIds: string[] = [];
+
+  for (const text of existing) {
+    if (!text.trim()) continue;
+    const idMatch = text.match(/[A-Z][A-Z0-9_-]*-\d{3}/)?.[0] ?? 'existing task';
+    const textKey = normalize(text);
+    const textTokens = tokenize(text);
+    if (!textTokens.length) continue;
+
+    // Substring / prefix matching
+    const normalizedPrefix = textKey.slice(0, 180);
+    if (descKey && (textKey.includes(descKey) || (!!normalizedPrefix && descKey.includes(normalizedPrefix)))) {
+      matchedIds.push(idMatch);
+      continue;
+    }
+
+    // Token set overlap & Jaccard similarity
+    const intersection = descTokens.filter((t) => textTokens.includes(t));
+    const union = new Set([...descTokens, ...textTokens]);
+    const jaccard = union.size ? intersection.length / union.size : 0;
+    const descOverlap = descTokens.length ? intersection.length / descTokens.length : 0;
+    const dice = stringSimilarity(descKey, textKey.slice(0, 300));
+
+    if (jaccard >= 0.35 || descOverlap >= 0.6 || dice >= 0.5 || (intersection.length >= 3 && descOverlap >= 0.4)) {
+      matchedIds.push(idMatch);
+    }
+  }
+  return [...new Set(matchedIds)].slice(0, 3);
+}
 function allocate(prefix: string, texts: string[], count: number) { const ids = [...texts.join('\n').matchAll(new RegExp(`${prefix}-(\\d{3})`, 'g'))].map((m) => Number(m[1])); const start = Math.max(0, ...ids) + 1; return Array.from({ length: count }, (_, i) => `${prefix}-${String(start + i).padStart(3, '0')}`); }
 async function files(repository: RepositoryConfig, ids: string[], tasks: ProposedTask[], images: ImageEvidence[]) { const tracker = join(repository.path, repository.taskTracking); const evidence = (document: string) => images.map((image) => `- Screenshot: [${image.filename}](./${relative(dirname(document), join(repository.path, image.path))}) (${image.format.toUpperCase()}, ${image.bytes} bytes)`).join('\n'); if (repository.taskResolver.kind === 'heading') { const current = await readFile(tracker, 'utf8'); const prefix = repository.taskResolver.heading ? repository.taskResolver.heading.replace('{id}', '') : '### '; const additions = tasks.map((task, i) => markdown(ids[i], task, evidence(tracker), prefix)).join('\n'); return [{ path: tracker, content: `${current.trimEnd()}\n\n${additions}` }]; }
   const directory = join(repository.path, repository.taskResolver.path); const docs = tasks.map((task, i) => { const path = join(directory, `${ids[i]}-${slug(task.title)}.md`); return { path, content: markdown(ids[i], task, evidence(path), '# ') }; }); const currentTracker = await readFile(tracker, 'utf8'); return [...docs, { path: tracker, content: index(currentTracker, ids, tasks) }]; }

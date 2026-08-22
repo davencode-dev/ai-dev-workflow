@@ -31,6 +31,7 @@ export type ProviderResult = { status: 'success' | 'failure' | 'timeout' | 'unav
 export type TaskResult = {
   id: string; status: 'completed' | 'failed' | 'blocked' | 'skipped' | 'dry-run'; filesChanged: string[];
   validations: CommandResult[]; androidBuild?: CommandResult; commit?: { hash: string; message: string }; providerOutput?: string; reason?: string;
+  retriesUsed?: number; attempts?: number;
 };
 export type SequenceReport = {
   provider: string; repository: string; requestedTasks: string[]; resolvedTasks: Pick<ResolvedTask, 'id' | 'document' | 'line'>[];

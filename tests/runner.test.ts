@@ -26,7 +26,8 @@ class FakeProvider implements AgentProvider {
 }
 
 test('parses CLI and rejects missing provider', () => {
-  assert.deepEqual(parseArgs(['--agent', 'codex', '--dry-run', 'example-app', 'APP-003', 'APP-001']), { agent: 'codex', dryRun: true, application: 'example-app', taskIds: ['APP-003', 'APP-001'] });
+  assert.deepEqual(parseArgs(['--agent', 'codex', '--dry-run', '--retries', '2', '--rollback-on-failure', 'example-app', 'APP-003', 'APP-001']), { agent: 'codex', dryRun: true, retries: 2, rollbackOnFailure: true, application: 'example-app', taskIds: ['APP-003', 'APP-001'] });
+  assert.deepEqual(parseArgs(['--agent', 'codex', '--dry-run', 'example-app', 'APP-003', 'APP-001']), { agent: 'codex', dryRun: true, retries: 0, rollbackOnFailure: false, application: 'example-app', taskIds: ['APP-003', 'APP-001'] });
   assert.throws(() => parseArgs(['example-app', 'APP-001']));
 });
 test('resolver preserves order and rejects duplicate, wrong prefix, missing task', async () => {

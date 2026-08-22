@@ -17,4 +17,8 @@ export class Git {
     result = await runProcess('git', ['commit', '-m', message], path); if (result.exitCode) throw new Error(result.output);
     const hash = await runProcess('git', ['rev-parse', 'HEAD'], path); return { hash: hash.output.trim(), message };
   }
+  async discardChanges(path: string) {
+    await runProcess('git', ['reset', '--hard', 'HEAD'], path);
+    await runProcess('git', ['clean', '-fd'], path);
+  }
 }

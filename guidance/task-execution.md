@@ -4,4 +4,4 @@ Runner resolves every requested task before modifying target repository. Preserv
 
 Runner, not provider, checks Git, selects validations/build, reviews unsafe diff classes, creates focused commit, writes report, stops failure/block, emits resume command.
 
-Target `AGENTS.md`/`CLAUDE.md` remain repository-local guidance. This file is common orchestration policy; provider bridges only forward invocation.
+Target `AGENTS.md`/`CLAUDE.md` remain repository-local guidance. Common engineering security, component communication, state architecture, and rendering standards are defined in [guidance/engineering-best-practices.md](engineering-best-practices.md). Provider bridges forward invocation against these standards.
