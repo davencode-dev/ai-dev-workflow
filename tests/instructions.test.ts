@@ -10,8 +10,9 @@ test('task instruction carries the execution discipline into the provider proces
   const prompt = taskInstruction(task, repository);
   assert.match(prompt, /Implement only APP-001/);
   assert.match(prompt, /goes red on this exact symptom/);
+  assert.match(prompt, /documentation or planning task, the evidence is the configured validations passing/);
   assert.match(prompt, /Never report work done on inspection alone/);
-  assert.match(prompt, /quote the command and its result as evidence/);
+  assert.match(prompt, /repository validation commands/);
 });
 
 test('task instruction names the configured closure build, not a hardcoded one', () => {
@@ -28,5 +29,6 @@ test('retry instruction adds diagnosis and keeps the discipline', () => {
   assert.match(prompt, /Diagnose before editing/);
   assert.match(prompt, /three ranked hypotheses/);
   assert.match(prompt, /one variable at a time/);
-  assert.match(prompt, /goes red on this exact symptom/);
+  assert.match(prompt, /Never report work done on inspection alone/);
+  assert.doesNotMatch(prompt, /goes red on this exact symptom/);
 });
