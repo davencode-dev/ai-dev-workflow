@@ -15,6 +15,7 @@ Domain language for `ai-dev-workflow`. Use these words in prompts, task document
 - **Run report**: the JSON file written to `.agent-runs/` per invocation. Records provider, task order, results, changed files, validation and build evidence, commits, git states, and the resume command.
 - **Resume command**: the exact re-invocation printed by a stopped run. Copy it; do not reconstruct it.
 - **Dry run**: `--dry-run`. Checks provider, application, every task document, order, and policy. Invokes no agent and changes no target repository.
+- **Instruction**: the prompt `src/providers/agent-provider.ts` builds for each attempt. It carries the task pointer, the prohibitions, and the **discipline**: a tight red-capable command before editing, and evidence rather than inspection before reporting done. A retry adds the **diagnosis** block: reproduce, minimise, three falsifiable hypotheses, one variable at a time.
 - **Manifest**: `.ai-dev-workflow/mobile-verification.json` in a mobile target repository. To `verify-mobile` what the registry is to the runner.
 
 ## Relationships
@@ -26,6 +27,8 @@ Domain language for `ai-dev-workflow`. Use these words in prompts, task document
 - Nothing in this repository ever pushes.
 
 ## Boundaries
+
+A provider process runs with its working directory set to the target repository, so it loads that repository's `AGENTS.md`, skills, and guidance, never this repository's. The instruction is the only channel the orchestrator has for execution discipline; discipline belongs there, not in a skill file here.
 
 Core, registry, and provider adapters are the only three layers. There is no server, queue, database, background worker, or shared application runtime; target repositories stay independent and registry-owned. Adding a provider means implementing `AgentProvider` in `src/providers/`, registering it, and adding adapter tests. It never means a branch in core.
 
