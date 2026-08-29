@@ -53,7 +53,7 @@ Validation commands come from the registry. When a repository exposes `build:and
 
 ## Reports
 
-New JSON reports: `.agent-runs/`. They record provider, task docs/order, results, changed files, validation/build evidence, commits, Git states, resume. Historical `.codex-runs/` remains untouched; old status readers can continue reading it. Old prompt-driven runner (`scripts/run-tasks.sh`, `prompts/15-run-tasks-sequentially.md`) is legacy/superseded, retained as historical evidence.
+New JSON reports: `.agent-runs/`. They record provider, task docs/order, results, changed files, validation/build evidence, commits, Git states, resume. Historical `.codex-runs/` remains untouched; old status readers can continue reading it.
 
 Both report directories are ignored because output may contain local paths, task content, and provider responses.
 
@@ -65,7 +65,6 @@ Implement `AgentProvider` in `src/providers/`, register it in `src/cli/run-tasks
 
 ```bash
 npm test
-npm run test:legacy
 ```
 
 ## Mobile verification
