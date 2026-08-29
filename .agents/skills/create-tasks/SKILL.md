@@ -1,18 +1,18 @@
 ---
 name: create-tasks
-description: Create grounded, independently actionable application task documents from an application identifier, short issue report, and optional screenshots. Use for `$create-tasks`, `/create-task`, reported UI bugs, UX issues, state glitches, or backend errors that must become task definitions without implementing product work.
+description: Turn a short issue report and optional screenshots into grounded, independently actionable task documents. Use for `$create-tasks` or `/create-tasks`, and for reported UI bugs, UX issues, state glitches, or backend errors that must become task definitions without implementing product work.
+argument-hint: "--agent <provider> [--dry-run] <application> --description <text> [--image <path>...]"
+disable-model-invocation: true
 ---
 
 # Create tasks
 
-Forward only to common command from `ai-dev-workflow` root. Never implement reported task.
+Forward to the common command from the `ai-dev-workflow` root. Never implement the reported issue.
 
 ```bash
 npm run create-tasks -- --agent codex <application> --description "<report>" --image "/path/image.png"
 ```
 
-Providers: `codex`, `claude-code` (alias `claude`), `antigravity` (alias `agy`).
+Run with no arguments for the provider list and full flags. Save attached images to disk and resolve absolute paths before invoking; repeat `--image` per file. Use `--dry-run` when scope or duplicates are uncertain, `--single-task` only when the report must stay one implementable unit.
 
-For attached images, save/resolve local paths first. Use repeated `--image`. Use `--dry-run` before live creation when scope or duplicates uncertain. Use `--single-task` only when report must stay one independently implementable unit. Add `--persist-images` only when task evidence should be committed.
-
-Common command owns repo resolution, screenshot validation, provider proposal schema, duplicate checks, identifiers, task docs, tracking, Git gates, commit, and report. It never executes product tasks or pushes.
+The command owns repo resolution, screenshot validation, the provider proposal schema, duplicate checks, identifiers, task docs, tracking, git gates, commit, and report. It never executes product tasks and never pushes.

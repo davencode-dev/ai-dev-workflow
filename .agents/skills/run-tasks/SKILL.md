@@ -1,26 +1,18 @@
 ---
 name: run-tasks
-description: Execute one or more ordered application task documents sequentially with isolated commits, validation, evidence, and stop-on-failure handling. Use when asked to run tasks with an application identifier and ordered task identifiers, including `/run-tasks` or `/run-task` requests.
+description: Execute ordered application task documents sequentially with isolated commits, validation, evidence, and stop-on-failure. Use for `$run-tasks` or `/run-tasks` with an application id and ordered task ids.
+argument-hint: "--agent <provider> [--dry-run] <application> <TASK-ID...>"
+disable-model-invocation: true
 ---
 
 # Run ordered tasks
 
-Run from `ai-dev-workflow`:
+Run from the `ai-dev-workflow` root, forwarding the short invocation only:
 
 ```bash
-npm run tasks -- --agent <codex|claude-code|antigravity> <application> <task-id> [task-id...]
+npm run tasks -- --agent codex example-app APP-003 APP-001 APP-002
 ```
 
-Aliases: `claude` = `claude-code`, `agy` = `antigravity`.
+Run with no arguments for the provider list and full flags. Use `--dry-run` before a live run.
 
-Examples:
-
-```text
-$run-tasks --agent codex example-app APP-003 APP-001 APP-002
-$run-tasks --agent claude-code file-app FILE-002 FILE-004
-$run-tasks --agent agy file-app FILE-002
-```
-
-Use `--dry-run` before a live run. Do not bypass common runner: it resolves every task before provider starts, owns checks/validation/commits, writes `.agent-runs` report.
-
-Forward short invocation only. Runner preserves order, one fresh session/task, stops first failure/block, preserves ambiguous changes, reports exact resume.
+Never bypass the common runner: it resolves every task before the provider starts, preserves the supplied order, opens one fresh session per task, owns git gates, validation, the Android closure gate, commits, and the `.agent-runs` report. It stops on the first failure or block, preserves ambiguous changes, and prints the exact resume command.
