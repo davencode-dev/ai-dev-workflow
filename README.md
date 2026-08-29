@@ -14,6 +14,10 @@ Create the machine-local registry. The file is ignored because it holds private 
 cp config/repositories.example.json config/repositories.json
 ```
 
+## Start from an idea
+
+`/grill` interrogates you until a rough report is grounded, then drives the rest: dry run, approval, task documents, execution. From Codex: `$grill`. From Claude Code: `/grill`. The process is [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
+
 ## Run tasks
 
 ```bash

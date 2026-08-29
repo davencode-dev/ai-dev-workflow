@@ -14,6 +14,7 @@ Read [CONTEXT.md](CONTEXT.md) before working here. It is the domain language: ap
 
 ## Pointers
 
+- Grounding an idea into task documents and running them: [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
 - Provider obligations during a task: [guidance/task-execution.md](guidance/task-execution.md).
 - Engineering standards forwarded to target repositories: [guidance/engineering-best-practices.md](guidance/engineering-best-practices.md).
 - Mobile verification and its manifest: [guidance/mobile-verification.md](guidance/mobile-verification.md).
