@@ -1,4 +1,0 @@
-interface:
-  display_name: "Create Tasks"
-  short_description: "Create grounded application task documents"
-  default_prompt: "Create actionable tasks from this report and screenshots."

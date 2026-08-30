@@ -16,7 +16,9 @@ cp config/repositories.example.json config/repositories.json
 
 ## Start from an idea
 
-`/grill` interrogates you until a rough report is grounded, then drives the rest: dry run, approval, task documents, execution. From Codex: `$grill`. From Claude Code: `/grill`. The process is [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
+`/grill` is the entry point, and the only one. It interrogates you until a rough report is grounded, then drives the rest: dry run, approval, task documents, execution, resume. From Codex: `$grill`. From Claude Code: `/grill`. The process is [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
+
+The commands below are what it forwards to. Run them directly only to inspect or resume.
 
 ## Run tasks
 
@@ -27,8 +29,6 @@ npm run tasks -- --agent codex --dry-run example-app APP-003 APP-001
 ```
 
 Run any command with no arguments for its provider list and full flags. Providers are `codex`, `claude-code` (alias `claude`), and `antigravity` (alias `agy`); aliases resolve to the canonical id, so reports and resume commands always print the canonical name.
-
-From Codex: `$run-tasks --agent codex example-app APP-003`. From Claude Code: `/run-tasks example-app APP-003`. Both forward to the same runner.
 
 ## Create task definitions
 

@@ -87,3 +87,9 @@ Everything so far was documentation. `run-tasks` writes product code and commits
 Take `runCommand` from the report this live run wrote, not from the dry-run report: task ids are allocated at write time. Append `--retries <N>` or `--rollback-on-failure` if the grill settled on them, then run it.
 
 Report the run report path, each task's result, the commits, and, if the queue stopped, the exact `resumeCommand`. Nothing here ever pushes.
+
+## Resuming a stopped queue
+
+The runner stops at the first failure or block and preserves the ambiguous changes, so the target repository is dirty and no further run can start until a human resolves it. Show the failing task's `reason` and its validation output, help the user decide what to keep, and only then run the report's `resumeCommand` verbatim. Do not reconstruct that command from the task ids.
+
+This skill is the only entry point. When the user asks to create or run tasks directly, start at the step that matches what they already have rather than pointing them at another command.
