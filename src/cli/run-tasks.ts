@@ -22,7 +22,8 @@ export function parseArgs(argv: string[]): Args {
       rollbackOnFailure = true;
     } else if (arg === '--retries') {
       const val = argv[++i];
-      retries = val ? Number.parseInt(val, 10) : 0;
+      if (val === undefined || val.startsWith('-')) throw new Error('Option --retries requires a non-negative integer');
+      retries = Number.parseInt(val, 10);
       if (Number.isNaN(retries) || retries < 0) throw new Error('Option --retries requires a non-negative integer');
     } else if (arg.startsWith('--retries=')) {
       retries = Number.parseInt(arg.slice(10), 10);

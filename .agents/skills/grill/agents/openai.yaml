@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grill"
+  short_description: "Question first, then run the whole task workflow"
+  default_prompt: "Grill me about this issue until it is grounded, then create and run the tasks."

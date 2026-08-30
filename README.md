@@ -16,9 +16,9 @@ cp config/repositories.example.json config/repositories.json
 
 ## Start from an idea
 
-`/grill` is the entry point, and the only one. It interrogates you until a rough report is grounded, then drives the rest: dry run, approval, task documents, execution, resume. From Codex: `$grill`. From Claude Code: `/grill`. The process is [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
+`/grill` is the entry point from Codex and Claude Code, and the only one they need. It interrogates you until a rough report is grounded, then drives the rest: dry run, approval, task documents, execution, resume. From Codex: `$grill`. From Claude Code: `/grill`. The process is [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
 
-The commands below are what it forwards to. Run them directly only to inspect or resume.
+The commands below are what it forwards to. Run them directly only to inspect or resume. The MCP servers are a separate surface and expose the same commands as tools without going through grill.
 
 ## Run tasks
 
