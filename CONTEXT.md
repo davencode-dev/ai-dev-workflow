@@ -11,7 +11,7 @@ Domain language for `ai-dev-workflow`. Use these words in prompts, task document
 - **Bridge**: the thin per-harness entry point that forwards an invocation to the common command: `.agents/skills/*/SKILL.md` for Codex, `.claude/commands/*.md` for Claude Code. Bridges hold no workflow logic.
 - **Core**: `src/core/`. Owns the whole lifecycle: args, resolution, git gates, ordered queue, validation, closure gate, commit, report, stop and resume. Core carries no per-provider branch.
 - **Proposal**: the typed structure a provider returns during `create-tasks`, before any task id is allocated. Malformed proposals and duplicates are rejected without writing.
-- **Closure gate**: the registry's `androidBuild` command, run after a task's validations and before its commit. It applies to every task in the queue, documentation tasks included. No substitute command is invented when it is absent.
+- **Closure gate**: the registry's `androidBuild` command, run after a task's validations and before its commit. It applies to every task in the queue, documentation tasks included. No substitute command is invented: a gate configured but unrunnable fails the task rather than being skipped.
 - **Run report**: the JSON file written to `.agent-runs/` per invocation. Records provider, task order, results, changed files, validation and build evidence, commits, git states, and the resume command.
 - **Resume command**: the exact re-invocation printed by a stopped run. Copy it; do not reconstruct it.
 - **Dry run**: `--dry-run`. Checks provider, application, every task document, order, and policy. Invokes no agent and changes no target repository.
