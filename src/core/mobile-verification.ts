@@ -23,6 +23,8 @@ export type MobileVerificationOptions = {
   application: string;
   manifestPath?: string;
   dryRun?: boolean;
+  // The runner's mobile gate verifies a task's uncommitted changes, so it skips the clean-target check.
+  allowDirtyTarget?: boolean;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -338,7 +340,7 @@ export async function runMobileVerification(options: MobileVerificationOptions):
     flows: [],
     manualWorkflows: (manifest.manualWorkflows ?? []).map((workflow) => ({ flow: workflow.id, status: 'MANUAL_REQUIRED', output: `${workflow.title}: ${workflow.reason}` })),
   };
-  if (!options.dryRun) {
+  if (!options.dryRun && !options.allowDirtyTarget) {
     const git = await runProcess('git', ['status', '--porcelain'], repository.path);
     const generatedPaths = [
       generatedOutputPath(repository.path, manifest.maestro.testOutputDir),
@@ -352,13 +354,13 @@ export async function runMobileVerification(options: MobileVerificationOptions):
     });
     if (dirtyPaths.length) throw new Error(`Target repository is dirty: ${repository.path}`);
   }
-  const requiredTools = new Set(['adb', manifest.maestro.command.command, manifest.build.command, ...manifest.checks.map((checkSpec) => checkSpec.command.command)]);
-  if (!options.dryRun) {
-    for (const tool of requiredTools) {
-      const toolCwd = manifest.build.command === tool && manifest.build.cwd ? targetPath(repository.path, manifest.build.cwd) : repository.path;
-      if (!(await commandAvailable(tool, toolCwd))) throw new Error(`Required tool unavailable: ${tool}`);
-    }
-  }
+  // Each stage checks its own tools just before it runs, so a machine without adb or maestro can still
+  // run the static checks and the build, and a failed check is reported rather than masked by a missing tool.
+  const requireTools = async (tools: string[], cwd = repository.path) => {
+    if (options.dryRun) return;
+    for (const tool of new Set(tools)) if (!(await commandAvailable(tool, cwd))) throw new Error(`Required tool unavailable: ${tool}`);
+  };
+  await requireTools(manifest.checks.map((checkSpec) => checkSpec.command.command));
   for (const checkSpec of manifest.checks) {
     report.checks.push(options.dryRun ? dryResult(checkSpec.command) : await runCommand(checkSpec.command, repository.path));
   }
@@ -366,6 +368,7 @@ export async function runMobileVerification(options: MobileVerificationOptions):
   if (!checksPassed) {
     report.build = { command: displayCommand(manifest.build), exitCode: 125, output: 'Skipped because a static check failed', status: 'BLOCKED' };
   } else {
+    await requireTools([manifest.build.command], commandCwd(manifest.build, repository.path));
     report.build = options.dryRun ? dryResult(manifest.build) : await runCommand(manifest.build, repository.path);
     if (!options.dryRun && report.build.status === 'PASS') {
       const artifact = targetPath(repository.path, manifest.build.artifact);
@@ -380,6 +383,7 @@ export async function runMobileVerification(options: MobileVerificationOptions):
     if (manifest.devices.secondary) report.devices.push({ role: 'secondary', serial: serialFor(manifest.devices.secondary), status: 'DRY_RUN' });
     report.flows = (await discoverMaestroFlows(repository.path, manifest.maestro)).map((flow) => ({ flow, status: 'DRY_RUN' }));
   } else if (report.build.status === 'PASS') {
+    await requireTools(['adb', manifest.maestro.command.command]);
     const roles: Array<[string, EmulatorRole | undefined]> = [['primary', manifest.devices.primary], ['secondary', manifest.devices.secondary]];
     const readyDevices: Array<{ role: string; serial: string }> = [];
     for (const [name, roleConfig] of roles) {
