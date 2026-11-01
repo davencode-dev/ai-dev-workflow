@@ -9,12 +9,21 @@
         "path": "docs/tasks",
         "pattern": "{id}-*.md"
       },
-      "validation": ["npm run typecheck", "npm test"],
+      "validation": [
+        "npm run typecheck",
+        "npm test"
+      ],
       "androidBuild": "npm run build:android:local",
-      "guidance": ["AGENTS.md"],
+      "guidance": [
+        "AGENTS.md"
+      ],
       "pilotEvidence": "docs/tasks/index.md",
       "taskTracking": "docs/tasks/index.md",
-      "taskEvidenceDir": "docs/tasks/evidence"
+      "taskEvidenceDir": "docs/tasks/evidence",
+      "commandTimeoutMs": 1800000,
+      "providerTimeoutMs": 3600000,
+      "closureGateScope": "all",
+      "allowLockfileChanges": false
     }
   ]
 }

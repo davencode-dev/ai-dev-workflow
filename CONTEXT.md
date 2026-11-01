@@ -11,7 +11,10 @@ Domain language for `ai-dev-workflow`. Use these words in prompts, task document
 - **Bridge**: the per-harness entry point. There is one, `grill` (the MCP servers are a separate surface that bypasses it): `.agents/skills/grill/SKILL.md` for Codex, `.claude/commands/grill.md` for Claude Code. It gathers and gates; the common commands own the work.
 - **Core**: `src/core/`. Owns the whole lifecycle: args, resolution, git gates, ordered queue, validation, closure gate, commit, report, stop and resume. Core carries no per-provider branch.
 - **Proposal**: the typed structure a provider returns during `create-tasks`, before any task id is allocated. Malformed proposals and duplicates are rejected without writing.
-- **Closure gate**: the registry's `androidBuild` command, run after a task's validations and before its commit. It applies to every task in the queue, documentation tasks included. No substitute command is invented: a gate configured but unrunnable fails the task rather than being skipped.
+- **Closure gate**: the registry's `androidBuild` command, run after a task's validations and before its commit. By default it applies to every task in the queue, documentation tasks included; `closureGateScope: "code"` exempts documentation tasks. No substitute command is invented: a gate configured but unrunnable fails the task rather than being skipped.
+- **Mobile gate**: opt-in with the registry's `mobileVerification`. Runs `verify-mobile` against the task's uncommitted changes after the closure gate and before the commit; anything but `PASS` fails the task. The manifest's `build` already builds the artifact, so a repository using it usually leaves `androidBuild` unset to avoid building twice.
+- **Documentation task**: a task document carrying `- Documentation only: yes`. It commits as `docs(...)` instead of `feat(...)`. Documents without the line fall back to a legacy phrase heuristic.
+- **Validation commands**: the registry's `validation` list plus every `` `npm test` `` or `` `npm run <script>` `` quoted in the task document. Other npm commands in a task document are ignored. Commands are split without a shell; quotes group arguments. Each command, and each provider attempt, has a kill limit (`commandTimeoutMs`, `providerTimeoutMs`).
 - **Run report**: the JSON file written to `.agent-runs/` per invocation. Records provider, task order, results, changed files, validation and build evidence, commits, git states, and the resume command.
 - **Resume command**: the exact re-invocation printed by a stopped run. Copy it; do not reconstruct it.
 - **Dry run**: `--dry-run`. Checks provider, application, every task document, order, and policy. Invokes no agent and changes no target repository.
@@ -22,6 +25,7 @@ Domain language for `ai-dev-workflow`. Use these words in prompts, task document
 
 - One registry holds many applications; one application holds many task documents.
 - One run covers one application and an ordered list of task ids; each task gets one fresh provider process and one Conventional Commit.
+- A changed lockfile blocks the task unless the registry sets `allowLockfileChanges`. `.env`, `.git`, `node_modules`, and store paths always block.
 - The first failure or block stops the queue. Remaining tasks are skipped, ambiguous changes are preserved, and the resume command is printed.
 - `create-tasks` is adjacent to `run-tasks`, not a stage of it: it commits a docs-only change and never implements product work.
 - Nothing in this repository ever pushes.

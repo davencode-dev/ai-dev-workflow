@@ -4,8 +4,17 @@ import { writeReport } from './reports.ts';
 import { selectRepository } from './repository-registry.ts';
 import { resolveTasks } from './task-resolver.ts';
 import { runAndroidBuild, runValidations } from './validation.ts';
+import { runMobileVerification } from './mobile-verification.ts';
 import { taskInstruction, retryInstruction, type AgentProvider } from '../providers/agent-provider.ts';
-import type { RepositoryConfig, SequenceReport, TaskResult } from './types.ts';
+import type { CommandResult, RepositoryConfig, SequenceReport, TaskResult } from './types.ts';
+
+export const defaultProviderTimeoutMs = 60 * 60 * 1000;
+const alwaysBlocked = /(^|\/)(\.env|\.git|node_modules|\.pnpm-store)(\/|$)/;
+const lockfile = /(?:^|\/)(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/;
+
+export function unsafeChange(files: string[], repository: RepositoryConfig): string | undefined {
+  return files.find((file) => alwaysBlocked.test(file) || (!repository.allowLockfileChanges && lockfile.test(file)));
+}
 
 export type RunOptions = {
   root: string;
@@ -45,7 +54,10 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
       status: 'dry-run',
       filesChanged: [],
       validations: repository.validation.map((command) => ({ command, exitCode: 0, output: 'would run' })),
-      androidBuild: { command: repository.androidBuild ?? '', exitCode: 0, output: repository.androidBuild ? 'would run if script exists' : 'not configured' },
+      androidBuild: gated(repository, task.documentationOnly)
+        ? { command: repository.androidBuild ?? '', exitCode: 0, output: repository.androidBuild ? 'would run if script exists' : 'not configured' }
+        : { command: repository.androidBuild ?? '', exitCode: 0, output: 'skipped: documentation task with closureGateScope code' },
+      mobileVerification: repository.mobileVerification ? { status: gated(repository, task.documentationOnly) ? 'would run' : 'skipped' } : undefined,
     }));
     report.endedAt = new Date().toISOString();
     const reportPath = await writeReport(options.root, report);
@@ -65,8 +77,9 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
     let attempts = 0;
     let lastFailureReason = '';
     let lastFilesChanged: string[] = [];
-    let lastValidations: any[] = [];
-    let lastAndroidBuild: any = undefined;
+    let lastValidations: CommandResult[] = [];
+    let lastAndroidBuild: CommandResult | undefined;
+    let lastMobile: TaskResult['mobileVerification'];
     let blockReason = '';
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -75,7 +88,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
         ? taskInstruction(task, repository)
         : retryInstruction(task, repository, lastFailureReason, attempt, maxRetries);
 
-      const execution = await options.provider.execute({ repository, task, prompt });
+      const execution = await options.provider.execute({ repository, task, prompt, timeoutMs: repository.providerTimeoutMs ?? defaultProviderTimeoutMs });
       const filesChanged = await git.changedFiles(repository.path);
       lastFilesChanged = filesChanged;
 
@@ -85,9 +98,11 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
         break;
       }
 
-      const invalid = filesChanged.find((file) => /(^|\/)(\.env|\.git|node_modules|\.pnpm-store)(\/|$)|(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/.test(file));
+      const invalid = unsafeChange(filesChanged, repository);
       if (invalid) {
-        blockReason = `Unsafe or unrelated changed file: ${invalid}`;
+        blockReason = lockfile.test(invalid) && !alwaysBlocked.test(invalid)
+          ? `Lockfile changed: ${invalid}. Set allowLockfileChanges in the registry to accept dependency changes`
+          : `Unsafe or unrelated changed file: ${invalid}`;
         break;
       }
 
@@ -101,11 +116,16 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
       const validations = await runValidations(repository, task);
       lastValidations = validations;
       const validationFailure = validations.find((result) => result.exitCode !== 0);
-      const androidBuild = validationFailure ? undefined : await runAndroidBuild(repository);
+      const gate = gated(repository, task.documentationOnly);
+      const androidBuild = validationFailure || !gate ? undefined : await runAndroidBuild(repository);
       lastAndroidBuild = androidBuild;
+      const mobile = validationFailure || androidBuild?.exitCode || !gate || !repository.mobileVerification
+        ? undefined
+        : await mobileGate(options.root, repository);
+      lastMobile = mobile;
 
-      if (validationFailure || androidBuild?.exitCode) {
-        lastFailureReason = validationFailure?.output ?? androidBuild?.output ?? 'Validation or build check failed';
+      if (validationFailure || androidBuild?.exitCode || (mobile && mobile.status !== 'PASS')) {
+        lastFailureReason = validationFailure?.output ?? (androidBuild?.exitCode ? androidBuild.output : undefined) ?? mobile?.output ?? 'Validation or build check failed';
         if (attempt < maxRetries) continue;
         break;
       }
@@ -123,6 +143,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
         filesChanged,
         validations,
         androidBuild,
+        mobileVerification: mobile,
         commit,
         providerOutput: execution.output,
         attempts,
@@ -142,6 +163,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
           filesChanged: lastFilesChanged,
           validations: lastValidations,
           androidBuild: lastAndroidBuild,
+          mobileVerification: lastMobile,
           reason: lastFailureReason,
           attempts,
           retriesUsed: attempts - 1,
@@ -161,6 +183,23 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
   report.resumeCommand = resume(options.provider.id, repository.id, next < 0 ? [] : options.taskIds.slice(next), options.retries, options.rollbackOnFailure);
   const reportPath = await writeReport(options.root, report);
   return { report, reportPath };
+}
+
+function gated(repository: RepositoryConfig, documentationOnly: boolean) {
+  return repository.closureGateScope !== 'code' || !documentationOnly;
+}
+
+async function mobileGate(root: string, repository: RepositoryConfig): Promise<NonNullable<TaskResult['mobileVerification']>> {
+  try {
+    const { report, reportPath } = await runMobileVerification({ root, registry: [repository], application: repository.id, manifestPath: repository.mobileVerification?.manifest, allowDirtyTarget: true });
+    const failures = [...report.checks, ...(report.build ? [report.build] : []), ...report.flows]
+      .filter((entry) => entry.status === 'FAIL' || entry.status === 'BLOCKED')
+      .map((entry) => `${'flow' in entry ? entry.flow : entry.command}: ${entry.status}\n${entry.output ?? ''}`);
+    const devices = report.devices.filter((device) => device.status === 'BLOCKED').map((device) => `device ${device.role}: BLOCKED ${device.reason ?? ''}`);
+    return { status: report.status, reportPath, output: [...devices, ...failures].join('\n') || undefined };
+  } catch (error) {
+    return { status: 'BLOCKED', output: `verify-mobile could not run: ${(error as Error).message}` };
+  }
 }
 
 function fail(id: string, status: 'failed' | 'blocked', reason: string, filesChanged: string[] = [], attempts = 1, retriesUsed = 0): TaskResult {

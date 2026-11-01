@@ -1,26 +1,48 @@
 import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
-import { runProcess } from './process.ts';
+import { runProcess, splitCommand } from './process.ts';
 import type { CommandResult, RepositoryConfig, ResolvedTask } from './types.ts';
+
+export const defaultCommandTimeoutMs = 30 * 60 * 1000;
+
+// Task documents are written by providers during create-tasks, so only commands that run the target
+// repository's own scripts are taken from them. Anything else (npm install, npm exec, npm publish) is ignored.
+const taskCommand = /^npm (?:test|run [\w:.-]+)(?:\s|$)/;
+
+export function taskValidationCommands(task: ResolvedTask): string[] {
+  return [...task.content.matchAll(/`(npm\s[^`\n]+)`/g)].map((match) => match[1].trim().replace(/\s+/g, ' ')).filter((command) => taskCommand.test(command));
+}
+
+async function run(command: string, repository: RepositoryConfig): Promise<CommandResult> {
+  let argv: string[];
+  try { argv = splitCommand(command); } catch (error) { return { command, exitCode: 2, output: (error as Error).message }; }
+  const [bin, ...args] = argv;
+  const result = await runProcess(bin, args, repository.path, repository.commandTimeoutMs ?? defaultCommandTimeoutMs);
+  return { command, exitCode: result.exitCode, output: result.output };
+}
 
 export async function runValidations(repository: RepositoryConfig, task?: ResolvedTask): Promise<CommandResult[]> {
   const output: CommandResult[] = [];
-  const taskCommands = task ? [...task.content.matchAll(/`(npm(?:\s+run)?\s+[^`\n]+)`/g)].map((match) => match[1]) : [];
-  for (const command of [...new Set([...repository.validation, ...taskCommands])]) { const [bin, ...args] = command.split(' '); const r = await runProcess(bin, args, repository.path); output.push({ command, ...r }); if (r.exitCode) break; }
+  for (const command of new Set([...repository.validation, ...(task ? taskValidationCommands(task) : [])])) {
+    const result = await run(command, repository);
+    output.push(result);
+    if (result.exitCode) break;
+  }
   return output;
 }
+
 export async function runAndroidBuild(repository: RepositoryConfig): Promise<CommandResult | undefined> {
   if (!repository.androidBuild) return undefined;
-  const [bin, ...args] = repository.androidBuild.split(' ');
-  const script = bin === 'npm' && args[0] === 'run' ? args[1] : undefined;
+  let argv: string[];
+  try { argv = splitCommand(repository.androidBuild); } catch (error) { return { command: repository.androidBuild, exitCode: 2, output: (error as Error).message }; }
+  const script = argv[0] === 'npm' && argv[1] === 'run' ? argv[2] : undefined;
   if (script) {
     const missing = await missingScript(repository, script);
     // A configured gate that cannot run is a failure, not a skip: no substitute command is invented.
     if (missing) return { command: repository.androidBuild, exitCode: 1, output: missing };
   }
-  const r = await runProcess(bin, args, repository.path);
-  return { command: repository.androidBuild, ...r };
+  return run(repository.androidBuild, repository);
 }
 
 async function missingScript(repository: RepositoryConfig, script: string): Promise<string | undefined> {

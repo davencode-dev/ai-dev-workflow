@@ -34,8 +34,18 @@ async function resolveTask(repository: RepositoryConfig, id: string): Promise<Re
   return task(id, document, await readFile(document, 'utf8'), 1);
 }
 
+// An explicit `- Documentation only: yes|no` line decides. Documents without it fall back to the legacy
+// phrase heuristic so task documents written before the marker keep their commit type.
+const marker = /^\s*[-*]\s*Documentation only:\s*(yes|no|true|false)\s*$/im;
+const legacyPhrase = /(?:documentation|documentaci[oó]n|planning|planificaci[oó]n)[\s\S]{0,100}(?:only|primero|first)|no application code changes/i;
+
+export function isDocumentationOnly(content: string): boolean {
+  const explicit = content.match(marker);
+  if (explicit) return /^(yes|true)$/i.test(explicit[1]);
+  return legacyPhrase.test(content);
+}
+
 function task(id: string, document: string, content: string, line: number): ResolvedTask {
-  const documentationOnly = /(?:documentation|documentaci[oó]n|planning|planificaci[oó]n)[\s\S]{0,100}(?:only|primero|first)|no application code changes/i.test(content);
-  return { id, document, content, line, documentationOnly };
+  return { id, document, content, line, documentationOnly: isDocumentationOnly(content) };
 }
 function escapeRegex(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }

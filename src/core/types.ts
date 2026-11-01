@@ -9,6 +9,15 @@ export type RepositoryConfig = {
   pilotEvidence: string;
   taskTracking: string;
   taskEvidenceDir?: string;
+  // Kill limits. Defaults: 30 minutes per validation or closure gate, 60 minutes per provider attempt.
+  commandTimeoutMs?: number;
+  providerTimeoutMs?: number;
+  // 'all' (default) gates every task; 'code' skips the closure gate and the mobile gate for documentation tasks.
+  closureGateScope?: 'all' | 'code';
+  // Lockfile changes block a task unless this is true. .env, .git, node_modules and store paths always block.
+  allowLockfileChanges?: boolean;
+  // Present: verify-mobile runs against the task's uncommitted changes after the closure gate, before the commit.
+  mobileVerification?: { manifest?: string };
 };
 
 export type TaskType = 'bug' | 'ux' | 'feature' | 'technical' | 'investigation';
@@ -30,7 +39,7 @@ export type CommandResult = { command: string; exitCode: number; output: string 
 export type ProviderResult = { status: 'success' | 'failure' | 'timeout' | 'unavailable'; output: string; exitCode?: number };
 export type TaskResult = {
   id: string; status: 'completed' | 'failed' | 'blocked' | 'skipped' | 'dry-run'; filesChanged: string[];
-  validations: CommandResult[]; androidBuild?: CommandResult; commit?: { hash: string; message: string }; providerOutput?: string; reason?: string;
+  validations: CommandResult[]; androidBuild?: CommandResult; mobileVerification?: { status: string; reportPath?: string; output?: string }; commit?: { hash: string; message: string }; providerOutput?: string; reason?: string;
   retriesUsed?: number; attempts?: number;
 };
 export type SequenceReport = {

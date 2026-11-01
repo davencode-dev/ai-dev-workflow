@@ -14,6 +14,8 @@ Create the machine-local registry. The file is ignored because it holds private 
 cp config/repositories.example.json config/repositories.json
 ```
 
+Optional registry fields: `commandTimeoutMs` and `providerTimeoutMs` (kill limits; 30 and 60 minutes by default), `closureGateScope` (`all` or `code`), `allowLockfileChanges`, and `mobileVerification` (gate each task on `verify-mobile`). Their meaning is in [CONTEXT.md](CONTEXT.md).
+
 ## Start from an idea
 
 `/grill` is the entry point from Codex and Claude Code, and the only one they need. It interrogates you until a rough report is grounded, then drives the rest: dry run, approval, task documents, execution, resume. From Codex: `$grill`. From Claude Code: `/grill`. The process is [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
@@ -68,5 +70,5 @@ Run reports are written to `.agent-runs/` and are ignored, because they can cont
 ## Verify
 
 ```bash
-npm test
+npm run check
 ```
