@@ -2,12 +2,21 @@
   "name": "ai-dev-workflow",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.6"
+  },
   "scripts": {
     "tasks": "node --experimental-strip-types src/cli/run-tasks.ts",
     "create-tasks": "node --experimental-strip-types src/cli/create-tasks.ts",
     "verify-mobile": "node --experimental-strip-types src/cli/verify-mobile.ts",
     "mcp:workflow": "node --experimental-strip-types src/mcp/workflow-server.ts",
     "mcp:android": "node --experimental-strip-types src/mcp/android-server.ts",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc -p .",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
   }
 }

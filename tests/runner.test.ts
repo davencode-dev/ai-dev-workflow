@@ -16,7 +16,7 @@ async function fixture() {
   await writeFile(join(root, '.gitignore'), '.agent-runs/\napp/\n'); await writeFile(join(root, 'base'), 'x'); execFileSync('git', ['add', '.'], { cwd: root }); execFileSync('git', ['commit', '-qm', 'base'], { cwd: root });
   await mkdir(repo); execFileSync('git', ['init', '-q'], { cwd: repo }); execFileSync('git', ['config', 'user.email', 'test@example.test'], { cwd: repo }); execFileSync('git', ['config', 'user.name', 'Test'], { cwd: repo });
   await writeFile(join(repo, 'TASKS.md'), '### APP-001 — One\nTask.\n### APP-002 — Two\nTask.\n'); await writeFile(join(repo, 'package.json'), '{"scripts":{"build:android:local":"true"}}\n'); execFileSync('git', ['add', '.'], { cwd: repo }); execFileSync('git', ['commit', '-qm', 'base'], { cwd: repo });
-  const config: RepositoryConfig = { id: 'example-app', path: repo, taskPrefix: 'APP', taskResolver: { kind: 'heading', path: 'TASKS.md', heading: '### {id}' }, validation: ['true'], androidBuild: 'true', guidance: ['AGENTS.md'], pilotEvidence: 'TASKS.md' };
+  const config: RepositoryConfig = { id: 'example-app', path: repo, taskPrefix: 'APP', taskResolver: { kind: 'heading', path: 'TASKS.md', heading: '### {id}' }, validation: ['true'], androidBuild: 'true', guidance: ['AGENTS.md'], pilotEvidence: 'TASKS.md', taskTracking: 'TASKS.md' };
   return { root, repo, config };
 }
 class FakeProvider implements AgentProvider {
@@ -36,7 +36,7 @@ test('resolver preserves order and rejects duplicate, wrong prefix, missing task
 });
 test('file task resolver resolves one File App-style document', async () => {
   const { repo } = await fixture(); await mkdir(join(repo, 'specs')); await writeFile(join(repo, 'specs', 'FILE-002-spacing.md'), '# task\n');
-  const config: RepositoryConfig = { id: 'file-app', path: repo, taskPrefix: 'FILE', taskResolver: { kind: 'file', path: 'specs', pattern: '{id}-*.md' }, validation: [], guidance: [], pilotEvidence: 'specs' };
+  const config: RepositoryConfig = { id: 'file-app', path: repo, taskPrefix: 'FILE', taskResolver: { kind: 'file', path: 'specs', pattern: '{id}-*.md' }, validation: [], guidance: [], pilotEvidence: 'specs', taskTracking: 'specs' };
   assert.deepEqual((await resolveTasks(config, ['FILE-002'])).map((task) => task.id), ['FILE-002']);
 });
 test('dry run invokes no provider and reports commands', async () => {

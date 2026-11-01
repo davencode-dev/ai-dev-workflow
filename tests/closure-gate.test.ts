@@ -11,7 +11,7 @@ async function repository(scripts: Record<string, string>, androidBuild?: string
   const path = await mkdtemp(join(tmpdir(), 'closure-gate-'));
   execFileSync('git', ['init', '-q'], { cwd: path });
   await writeFile(join(path, 'package.json'), `${JSON.stringify({ name: 'target', scripts })}\n`);
-  return { id: 'target', path, taskPrefix: 'T', taskResolver: { kind: 'file', path: 'docs/tasks', pattern: '{id}-*.md' }, validation: [], androidBuild, guidance: [], pilotEvidence: 'docs/tasks/index.md' } as RepositoryConfig;
+  return { id: 'target', path, taskPrefix: 'T', taskResolver: { kind: 'file', path: 'docs/tasks', pattern: '{id}-*.md' }, validation: [], androidBuild, guidance: [], pilotEvidence: 'docs/tasks/index.md', taskTracking: 'docs/tasks/index.md' };
 }
 
 test('closure gate runs the configured npm script, not a hardcoded one', async () => {
