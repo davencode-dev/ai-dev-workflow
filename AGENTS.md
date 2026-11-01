@@ -10,13 +10,12 @@ Read [CONTEXT.md](CONTEXT.md) before working here. It is the domain language: ap
 - Never bypass the common runner or reimplement its workflow in a bridge, a skill, or a prompt.
 - Keep `src/core/` free of per-provider branches, and provider adapters free of sequencing, validation, commits, and workflow interpretation.
 - Keep `config/repositories.json` out of git; publish changes through `config/repositories.example.json`.
-- Run `npm test` before committing.
+- Run `npm run check` (typecheck and tests) before committing. CI runs the same command.
 
 ## Pointers
 
 - Grounding an idea into task documents and running them: [.agents/skills/grill/SKILL.md](.agents/skills/grill/SKILL.md).
-- Provider obligations during a task: [guidance/task-execution.md](guidance/task-execution.md).
-- Engineering standards forwarded to target repositories: [guidance/engineering-best-practices.md](guidance/engineering-best-practices.md).
+- Provider obligations during a task: the instruction in [src/providers/agent-provider.ts](src/providers/agent-provider.ts). It is the only text a provider receives from this repository.
+- Engineering standards for target repositories: [guidance/engineering-best-practices.md](guidance/engineering-best-practices.md). Not forwarded automatically; a target adopts it through its own `AGENTS.md`.
 - Mobile verification and its manifest: [guidance/mobile-verification.md](guidance/mobile-verification.md).
 - Running the MCP servers from a client: [guidance/mcp-servers.md](guidance/mcp-servers.md).
-- React Native and Expo rules: [.agents/skills/react-native-skills/SKILL.md](.agents/skills/react-native-skills/SKILL.md).
