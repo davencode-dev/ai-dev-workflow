@@ -18,6 +18,9 @@ export type RepositoryConfig = {
   allowLockfileChanges?: boolean;
   // Present: verify-mobile runs against the task's uncommitted changes after the closure gate, before the commit.
   mobileVerification?: { manifest?: string };
+  // Local headroom proxy every provider session must go through. Set once at the top of the registry file;
+  // an application entry may override the url.
+  headroom?: { url: string };
 };
 
 export type TaskType = 'bug' | 'ux' | 'feature' | 'technical' | 'investigation';
@@ -32,6 +35,7 @@ export type CreateTasksReport = {
   provider: string; repository: string; description: string; images: ImageEvidence[]; proposed: ProposedTask[];
   created: string[]; duplicates: string[]; filesChanged: string[]; trackingFile: string; dryRun: boolean;
   startedAt: string; endedAt?: string; commit?: { hash: string; message: string }; warnings: string[]; runCommand: string;
+  headroom?: { proxyUrl: string; requests: number };
 };
 
 export type ResolvedTask = { id: string; document: string; line: number; content: string; documentationOnly: boolean };
@@ -40,7 +44,7 @@ export type ProviderResult = { status: 'success' | 'failure' | 'timeout' | 'unav
 export type TaskResult = {
   id: string; status: 'completed' | 'failed' | 'blocked' | 'skipped' | 'dry-run'; filesChanged: string[];
   validations: CommandResult[]; androidBuild?: CommandResult; mobileVerification?: { status: string; reportPath?: string; output?: string }; commit?: { hash: string; message: string }; providerOutput?: string; reason?: string;
-  retriesUsed?: number; attempts?: number;
+  retriesUsed?: number; attempts?: number; headroom?: { proxyUrl: string; requests: number }[];
 };
 export type SequenceReport = {
   provider: string; repository: string; requestedTasks: string[]; resolvedTasks: Pick<ResolvedTask, 'id' | 'document' | 'line'>[];

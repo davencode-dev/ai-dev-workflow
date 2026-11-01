@@ -4,9 +4,9 @@ export type ProcessResult = { exitCode: number; output: string; timedOut?: boole
 
 const killGraceMs = 5000;
 
-export async function runProcess(command: string, args: string[], cwd: string, timeoutMs?: number): Promise<ProcessResult> {
+export async function runProcess(command: string, args: string[], cwd: string, timeoutMs?: number, env?: Record<string, string>): Promise<ProcessResult> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: env ? { ...process.env, ...env } : process.env });
     let output = '';
     let timedOut = false;
     child.stdout.on('data', (data) => { output += data; });

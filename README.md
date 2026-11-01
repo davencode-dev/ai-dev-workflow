@@ -14,6 +14,8 @@ Create the machine-local registry. The file is ignored because it holds private 
 cp config/repositories.example.json config/repositories.json
 ```
 
+To route every provider session through [headroom](https://github.com/headroomlabs-ai/headroom), start `headroom proxy --port 8787` and add `"headroom": { "url": "http://127.0.0.1:8787" }` at the top of `config/repositories.json`. Runs then refuse to start without the proxy, and a session that bypasses it blocks its task. Details in [CONTEXT.md](CONTEXT.md).
+
 Optional registry fields: `commandTimeoutMs` and `providerTimeoutMs` (kill limits; 30 and 60 minutes by default), `closureGateScope` (`all` or `code`), `allowLockfileChanges`, and `mobileVerification` (gate each task on `verify-mobile`). Their meaning is in [CONTEXT.md](CONTEXT.md).
 
 ## Start from an idea

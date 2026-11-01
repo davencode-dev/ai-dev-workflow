@@ -8,16 +8,18 @@ const printTimeout = '120m';
 
 export class AntigravityProvider implements AgentProvider {
   id = 'antigravity';
+  // agy takes a Gemini-compatible base url (scheme://host[/p/name]); Gemini clients append /v1beta themselves.
+  proxyEnv(proxyUrl: string) { return { GOOGLE_GEMINI_BASE_URL: proxyUrl }; }
   async available() { const r = await runProcess('agy', ['models'], process.cwd()); return r.exitCode === 0 ? { ok: true } : { ok: false, reason: 'agy CLI unavailable or unauthenticated; install/authenticate Antigravity' }; }
-  async execute({ repository, prompt, timeoutMs }: Parameters<AgentProvider['execute']>[0]): Promise<ProviderResult> {
-    const r = await runProcess('agy', ['--print-timeout', printTimeout, '--mode', 'accept-edits', '--add-dir', repository.path, '-p', prompt], repository.path, timeoutMs);
+  async execute({ repository, prompt, timeoutMs, env }: Parameters<AgentProvider['execute']>[0]): Promise<ProviderResult> {
+    const r = await runProcess('agy', ['--print-timeout', printTimeout, '--mode', 'accept-edits', '--add-dir', repository.path, '-p', prompt], repository.path, timeoutMs, env);
     return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
   }
-  async propose({ repository, prompt, images, schemaPath, timeoutMs }: Parameters<TaskProposalProvider['propose']>[0]): Promise<ProviderResult> {
+  async propose({ repository, prompt, images, schemaPath, timeoutMs, env }: Parameters<TaskProposalProvider['propose']>[0]): Promise<ProviderResult> {
     // agy has no output-schema flag; the schema travels in the prompt and create-tasks parses JSON out of the response.
     const schema = await readFile(schemaPath, 'utf8'); const imageDirs = [...new Set(images.map((image) => dirname(image.path)))];
     const args = ['--print-timeout', printTimeout, '--mode', 'plan', '--add-dir', repository.path, ...imageDirs.flatMap((dir) => ['--add-dir', dir]), '-p', `${prompt}\nCRITICAL: Respond ONLY with valid JSON matching this schema:\n${schema}`];
-    const r = await runProcess('agy', args, repository.path, timeoutMs);
+    const r = await runProcess('agy', args, repository.path, timeoutMs, env);
     return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
   }
 }

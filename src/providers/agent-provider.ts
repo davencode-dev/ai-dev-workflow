@@ -1,16 +1,26 @@
 import type { ImageEvidence, RepositoryConfig, ResolvedTask, ProviderResult } from '../core/types.ts';
 
+// proxyEnv maps a headroom proxy url to the environment that points this CLI at it. A provider without it
+// cannot run for an application that configures headroom.
 export type AgentProvider = {
   id: string;
   available(): Promise<{ ok: boolean; reason?: string }>;
-  execute(input: { repository: RepositoryConfig; task: ResolvedTask; prompt: string; timeoutMs?: number }): Promise<ProviderResult>;
+  proxyEnv?(proxyUrl: string): Record<string, string>;
+  execute(input: { repository: RepositoryConfig; task: ResolvedTask; prompt: string; timeoutMs?: number; env?: Record<string, string> }): Promise<ProviderResult>;
 };
 
 export type TaskProposalProvider = {
   id: string;
   available(): Promise<{ ok: boolean; reason?: string }>;
-  propose(input: { repository: RepositoryConfig; prompt: string; images: ImageEvidence[]; schemaPath: string; timeoutMs?: number }): Promise<ProviderResult>;
+  proxyEnv?(proxyUrl: string): Record<string, string>;
+  propose(input: { repository: RepositoryConfig; prompt: string; images: ImageEvidence[]; schemaPath: string; timeoutMs?: number; env?: Record<string, string> }): Promise<ProviderResult>;
 };
+
+export function sessionEnv(provider: Pick<AgentProvider, 'id' | 'proxyEnv'>, proxyUrl: string | undefined): Record<string, string> | undefined {
+  if (!proxyUrl) return undefined;
+  if (!provider.proxyEnv) throw new Error(`Provider ${provider.id} cannot route through headroom`);
+  return provider.proxyEnv(proxyUrl);
+}
 
 // Execution discipline forwarded into every provider process. Providers run with cwd set to the
 // target repository, so skills installed in ai-dev-workflow never reach them; this prompt is the
