@@ -5,7 +5,8 @@ import { Git } from './git.ts';
 import { runProcess } from './process.ts';
 import { selectRepository } from './repository-registry.ts';
 import type { CreateTasksReport, ImageEvidence, ProposedTask, RepositoryConfig, TaskProposal } from './types.ts';
-import type { TaskProposalProvider } from '../providers/agent-provider.ts';
+import { sessionEnv, type TaskProposalProvider } from '../providers/agent-provider.ts';
+import { assertHeadroomReady, finishHeadroomSession, headroomProxyUrl, startHeadroomSession } from './headroom.ts';
 
 const formats = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 export type CreateOptions = { root: string; provider: TaskProposalProvider; registry: RepositoryConfig[]; application: string; description: string; imagePaths: string[]; dryRun?: boolean; singleTask?: boolean; persistImages?: boolean; proposalReportPath?: string };
@@ -34,7 +35,16 @@ export async function createTasks(options: CreateOptions): Promise<{ report: Cre
   if (duplicates.length) { report.warnings.push(`Possible duplicate task evidence: ${duplicates.join(', ')}`); report.endedAt = new Date().toISOString(); return { report, reportPath: await writeCreateReport(options.root, report) }; }
   let proposal: TaskProposal;
   if (options.proposalReportPath) proposal = await replayProposal(options, repository, images);
-  else { const available = await options.provider.available(); if (!available.ok) throw new Error(`Provider ${options.provider.id} unavailable: ${available.reason ?? 'unknown error'}`); const schemaPath = await schema(options.root); const response = await options.provider.propose({ repository, images, schemaPath, prompt: proposalPrompt(repository, options.description, images, options.singleTask) }); if (response.status !== 'success') throw new Error(`Provider task proposal failed: ${response.output}`); proposal = validateProposal(parseJson(response.output)); }
+  else {
+    const available = await options.provider.available(); if (!available.ok) throw new Error(`Provider ${options.provider.id} unavailable: ${available.reason ?? 'unknown error'}`);
+    sessionEnv(options.provider, headroomProxyUrl(repository)); await assertHeadroomReady(repository);
+    const schemaPath = await schema(options.root);
+    const session = await startHeadroomSession(repository);
+    const response = await options.provider.propose({ repository, images, schemaPath, prompt: proposalPrompt(repository, options.description, images, options.singleTask), env: sessionEnv(options.provider, session?.proxyUrl) });
+    if (session) { const { evidence, bypassed } = await finishHeadroomSession(repository, session); report.headroom = evidence; if (bypassed) throw new Error(bypassed); }
+    if (response.status !== 'success') throw new Error(`Provider task proposal failed: ${response.output}`);
+    proposal = validateProposal(parseJson(response.output));
+  }
   const proposedTasks = proposal.tasks.map((task) => ({ ...task, title: withoutProviderId(task.title, repository.taskPrefix) })); report.proposed = proposedTasks; report.warnings.push(...(proposal.warnings ?? []));
   if (options.singleTask && proposal.tasks.length !== 1) throw new Error('--single-task cannot safely scope this report as one task');
   const ids = allocate(repository.taskPrefix, existing, proposal.tasks.length); report.created = ids;

@@ -5,7 +5,8 @@ import { selectRepository } from './repository-registry.ts';
 import { resolveTasks } from './task-resolver.ts';
 import { runAndroidBuild, runValidations } from './validation.ts';
 import { runMobileVerification } from './mobile-verification.ts';
-import { taskInstruction, retryInstruction, type AgentProvider } from '../providers/agent-provider.ts';
+import { assertHeadroomReady, finishHeadroomSession, headroomProxyUrl, startHeadroomSession } from './headroom.ts';
+import { sessionEnv, taskInstruction, retryInstruction, type AgentProvider } from '../providers/agent-provider.ts';
 import type { CommandResult, RepositoryConfig, SequenceReport, TaskResult } from './types.ts';
 
 export const defaultProviderTimeoutMs = 60 * 60 * 1000;
@@ -32,6 +33,8 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
   const resolved = await resolveTasks(repository, options.taskIds);
   const available = await options.provider.available();
   if (!available.ok) throw new Error(`Provider ${options.provider.id} unavailable: ${available.reason ?? 'unknown error'}`);
+  sessionEnv(options.provider, headroomProxyUrl(repository));
+  await assertHeadroomReady(repository);
   const git = new Git();
   const workflowState = await git.status(options.root);
   const targetState = await git.status(repository.path);
@@ -81,6 +84,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
     let lastAndroidBuild: CommandResult | undefined;
     let lastMobile: TaskResult['mobileVerification'];
     let blockReason = '';
+    const headroom: NonNullable<TaskResult['headroom']> = [];
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       attempts = attempt + 1;
@@ -88,9 +92,18 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
         ? taskInstruction(task, repository)
         : retryInstruction(task, repository, lastFailureReason, attempt, maxRetries);
 
-      const execution = await options.provider.execute({ repository, task, prompt, timeoutMs: repository.providerTimeoutMs ?? defaultProviderTimeoutMs });
+      const session = await startHeadroomSession(repository);
+      const execution = await options.provider.execute({ repository, task, prompt, timeoutMs: repository.providerTimeoutMs ?? defaultProviderTimeoutMs, env: sessionEnv(options.provider, session?.proxyUrl) });
       const filesChanged = await git.changedFiles(repository.path);
       lastFilesChanged = filesChanged;
+      if (session) {
+        const { evidence, bypassed } = await finishHeadroomSession(repository, session);
+        headroom.push(evidence);
+        if (bypassed && execution.status === 'success') {
+          blockReason = bypassed;
+          break;
+        }
+      }
 
       if (execution.status !== 'success') {
         lastFailureReason = execution.output;
@@ -148,6 +161,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
         providerOutput: execution.output,
         attempts,
         retriesUsed: attempt,
+        headroom: session ? headroom : undefined,
       });
       taskCompleted = true;
       break;
@@ -155,7 +169,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
 
     if (!taskCompleted) {
       if (blockReason) {
-        report.tasks.push(fail(task.id, 'blocked', blockReason, lastFilesChanged, attempts, attempts - 1));
+        report.tasks.push({ ...fail(task.id, 'blocked', blockReason, lastFilesChanged, attempts, attempts - 1), headroom: headroom.length ? headroom : undefined });
       } else {
         report.tasks.push({
           id: task.id,
@@ -167,6 +181,7 @@ export async function runSequence(options: RunOptions): Promise<{ report: Sequen
           reason: lastFailureReason,
           attempts,
           retriesUsed: attempts - 1,
+          headroom: headroom.length ? headroom : undefined,
         });
       }
       if (options.rollbackOnFailure) {

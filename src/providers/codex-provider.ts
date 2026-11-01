@@ -10,15 +10,17 @@ export function codexProposalArgs(repositoryPath: string, schemaPath: string, ou
 
 export class CodexProvider implements AgentProvider {
   id = 'codex';
+  // Same variable `headroom wrap codex` sets; the proxy serves the OpenAI API under /v1.
+  proxyEnv(proxyUrl: string) { return { OPENAI_BASE_URL: `${proxyUrl}/v1` }; }
   async available() { const r = await runProcess('codex', ['exec', '--help'], process.cwd()); return r.exitCode === 0 ? { ok: true } : { ok: false, reason: 'codex CLI unavailable or invalid' }; }
-  async execute({ repository, prompt, timeoutMs }: Parameters<AgentProvider['execute']>[0]): Promise<ProviderResult> {
-    const r = await runProcess('codex', ['exec', '--ephemeral', '-C', repository.path, '-s', 'workspace-write', prompt], repository.path, timeoutMs);
+  async execute({ repository, prompt, timeoutMs, env }: Parameters<AgentProvider['execute']>[0]): Promise<ProviderResult> {
+    const r = await runProcess('codex', ['exec', '--ephemeral', '-C', repository.path, '-s', 'workspace-write', prompt], repository.path, timeoutMs, env);
     return { status: r.exitCode === 0 ? 'success' : 'failure', output: r.output, exitCode: r.exitCode };
   }
-  async propose({ repository, prompt, images, schemaPath, timeoutMs }: Parameters<TaskProposalProvider['propose']>[0]): Promise<ProviderResult> {
+  async propose({ repository, prompt, images, schemaPath, timeoutMs, env }: Parameters<TaskProposalProvider['propose']>[0]): Promise<ProviderResult> {
     const outputPath = `${schemaPath}.output-${process.pid}-${Date.now()}.json`;
     const args = codexProposalArgs(repository.path, schemaPath, outputPath, images.map((image) => image.path), prompt);
-    const r = await runProcess('codex', args, repository.path, timeoutMs);
+    const r = await runProcess('codex', args, repository.path, timeoutMs, env);
     const output = existsSync(outputPath) ? await readFile(outputPath, 'utf8') : r.output;
     if (existsSync(outputPath)) await unlink(outputPath);
     return { status: r.exitCode === 0 ? 'success' : 'failure', output, exitCode: r.exitCode };

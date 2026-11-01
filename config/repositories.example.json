@@ -1,4 +1,7 @@
 {
+  "headroom": {
+    "url": "http://127.0.0.1:8787"
+  },
   "repositories": [
     {
       "id": "example-app",
